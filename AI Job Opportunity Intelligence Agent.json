@@ -1,0 +1,363 @@
+{
+  "name": "AI Job Opportunity Intelligence Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c8bfd68f-d085-4eec-a727-8d59533ecc5a",
+              "name": "=job_title",
+              "value": "={{$json.body.job_title}}",
+              "type": "string"
+            },
+            {
+              "id": "c4e77d42-3c60-445d-b495-713b14706bd2",
+              "name": "=company",
+              "value": "={{$json.body.company}}",
+              "type": "string"
+            },
+            {
+              "id": "ff26e0e0-2b2a-40d7-8adf-410645244cc1",
+              "name": "=required_skills",
+              "value": "={{$json.body.required_skills}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -48,
+        -112
+      ],
+      "id": "d9425d5d-4245-412d-b446-ab916a7c396b",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze this job opportunity and compare it with my candidate profile.\n\nJob Title: {{$json.job_title}}\nCompany: {{$json.company}}\nRequired Skills: {{$json.required_skills}}\n\nCandidate Skills:\nn8n, Workflow Automation, REST APIs, Webhooks, HTTP Request, JSON, Data Mapping, AI/LLM Integration, AI Agents, JavaScript, SQL, Git/GitHub.\n\nGive me:\n1. Match score out of 100\n2. Matched skills\n3. Missing skills\n4. Short reason for the score\n5. Application priority: High, Medium, or Low",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        176,
+        -112
+      ],
+      "id": "2593ef57-0a3d-4afe-8c75-d012ed60fe37",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        48,
+        96
+      ],
+      "id": "784d85fb-9fc9-4fc2-8250-fbac6ff5d435",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "job-analysis",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -288,
+        -16
+      ],
+      "id": "2cc3b8fc-ea30-484a-bb56-a3e0698b23f1",
+      "name": "Webhook",
+      "webhookId": "977c4472-0aba-4aa5-ba8f-cb8b09196039"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        560,
+        -208
+      ],
+      "id": "71145dd3-29be-426b-a5ca-b110e31fed8d",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "db01facb-a6aa-42f0-84ea-67b309d2d62a",
+              "leftValue": "={{ Number($json.output.match(/Match score:\\s*(\\d+)/i)?.[1] || 0) }}",
+              "rightValue": 70,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        528,
+        80
+      ],
+      "id": "4b3cb491-2a44-4f20-9ca4-26ec93a78850",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1Xgj2pbIyrBA66KzulrapK27K7w0TcDSvhgoizZSsCb4",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Xgj2pbIyrBA66KzulrapK27K7w0TcDSvhgoizZSsCb4/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Company": "={{$node[\"Edit Fields\"].json[\"company\"]}}",
+            "Job Title": "={{$node[\"Edit Fields\"].json[\"job_title\"]}}",
+            "Match Score": "={{ Number($node[\"AI Agent\"].json[\"output\"].match(/Match score:\\s*(\\d+)/i)?.[1] || 0) }}",
+            "Matched Skills": "={{ $node[\"AI Agent\"].json[\"output\"].match(/2\\) Matched skills:\\s*([\\s\\S]*?)\\n\\n3\\)/i)?.[1].replace(/-\\s*/g, \", \").trim() || \"\" }}",
+            "Missing Skills": "={{ $node[\"AI Agent\"].json[\"output\"].match(/3\\) Missing skills:\\s*([\\s\\S]*?)\\n\\n4\\)/i)?.[1].replace(/-\\s*/g, \", \").trim() || \"\" }}",
+            "Priority": "={{ $node[\"AI Agent\"].json[\"output\"].match(/5\\) Application priority:\\s*\\n?([A-Za-z]+)/i)?.[1] || \"\" }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Job Title",
+              "displayName": "Job Title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Match Score",
+              "displayName": "Match Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Matched Skills",
+              "displayName": "Matched Skills",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Missing Skills",
+              "displayName": "Missing Skills",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Priority",
+              "displayName": "Priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        800,
+        48
+      ],
+      "id": "4126e45e-7951-4fa4-a084-2dff5715fdc3",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "KieMwyFQtah1OwDK",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "aravanaresh35@gmail.com",
+        "subject": "=AI Job Match: {{$node[\"Edit Fields\"].json[\"job_title\"]}}",
+        "message": "=Job Analysis Result  Job Title: {{$node[\"Edit Fields\"].json[\"job_title\"]}}  Company: {{$node[\"Edit Fields\"].json[\"company\"]}}  {{$node[\"AI Agent\"].json[\"output\"]}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        -144
+      ],
+      "id": "24b6a7b4-4a28-4777-b179-911a9c009288",
+      "name": "Send a message",
+      "webhookId": "4650e78a-bd4d-4364-b858-5ffae4a959c4",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "XRG3lbr8Si4GtUS0",
+          "name": "Gmail account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "63336ab4-0cc5-48ee-a363-fdd242297020",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fddbd2bed9ad4f356b50ccf6e0962324914fe72843664f39db317c22f120b6f8"
+  },
+  "nodeGroups": [],
+  "id": "sL8VyPkAFqqLLpBQ",
+  "tags": []
+}
